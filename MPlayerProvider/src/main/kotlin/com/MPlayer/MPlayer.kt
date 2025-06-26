@@ -188,7 +188,35 @@ class MPlayer : MainAPI() {
             val seasonData = getSeasonData("$mainUrl${video.shareUrl}")
             val episodes = mutableListOf<Episode>()
             seasonData.forEach { (season, id) ->
-                val apiUrl = "$webApi/detail/tab/tvshowepisodes?type=season&id=$id"
+                var page = 0
+while (true) {
+    val pagedUrl = "$webApi/detail/tab/tvshowepisodes?type=season&id=$id&pageNum=$page&pageSize=100"
+    val jsonResponse = app.get(pagedUrl).toString()
+
+    val episodesParser = try {
+        gson.fromJson(jsonResponse, EpisodesParser::class.java)
+    } catch (e: Exception) {
+        Log.e("Error", "Failed to parse episodes JSON: ${e.message}")
+        break
+    }
+
+    if (episodesParser?.items.isNullOrEmpty()) break
+
+    episodesParser?.items?.forEachIndexed { index, it ->
+        val href1 = endpointurl + it.stream.hls.high
+        val name = it.title ?: "Unknown Title"
+        val image = imageUrl + it.imageInfo.map { img -> img.url }.firstOrNull()
+        val episode = episodes.size + 1
+        episodes += newEpisode(href1) {
+            this.name = name
+            this.season = season + 1
+            this.episode = episode
+            this.posterUrl = image
+        }
+    }
+
+    page++
+}
                 val jsonResponse = app.get(apiUrl).toString()
 
                 val episodesParser = try {
